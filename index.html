@@ -1101,7 +1101,7 @@ async function startAzureRecording() {
     }
 
     audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    mediaRecorder = new MediaRecorder(stream);
 
     mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) audioChunks.push(e.data);
@@ -1109,15 +1109,22 @@ async function startAzureRecording() {
 
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      console.log('[Inputly] Audio recorded, size:', blob.size, 'bytes');
-      await scoreWithAzureREST(blob);
+      const blob = new Blob(audioChunks);
+      console.log('[Inputly] Audio recorded, size:', blob.size, 'bytes — converting to WAV...');
+      try {
+        const wavBlob = await convertToWav(blob);
+        console.log('[Inputly] WAV size:', wavBlob.size, 'bytes');
+        await scoreWithAzureREST(wavBlob);
+      } catch (convErr) {
+        console.error('[Inputly] WAV conversion failed:', convErr);
+        showMicError("Audio conversion failed — try again.");
+      }
     };
 
     mediaRecorder.start();
     console.log('[Inputly] MediaRecorder started');
 
-    // Auto-stop after 4 seconds if user doesn't tap to stop
+    // Auto-stop after 4 seconds
     setTimeout(() => {
       if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
@@ -1132,11 +1139,57 @@ async function startAzureRecording() {
   }
 }
 
+// ── Convert any audio blob to 16kHz mono WAV (Azure requires PCM) ──
+async function convertToWav(audioBlob) {
+  const arrayBuffer = await audioBlob.arrayBuffer();
+  const audioCtx = new AudioContext();
+  const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+
+  // Resample to 16kHz mono
+  const targetSampleRate = 16000;
+  const offlineCtx = new OfflineAudioContext(1, decoded.duration * targetSampleRate, targetSampleRate);
+  const source = offlineCtx.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offlineCtx.destination);
+  source.start();
+  const resampled = await offlineCtx.startRendering();
+  audioCtx.close();
+
+  // Write PCM WAV
+  const pcm = resampled.getChannelData(0);
+  const wavBuffer = new ArrayBuffer(44 + pcm.length * 2);
+  const view = new DataView(wavBuffer);
+
+  const writeStr = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + pcm.length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);          // PCM
+  view.setUint16(22, 1, true);          // mono
+  view.setUint32(24, targetSampleRate, true);
+  view.setUint32(28, targetSampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true);          // block align
+  view.setUint16(34, 16, true);         // bits per sample
+  writeStr(36, 'data');
+  view.setUint32(40, pcm.length * 2, true);
+
+  // Convert float32 → int16
+  let off = 44;
+  for (let i = 0; i < pcm.length; i++) {
+    const s = Math.max(-1, Math.min(1, pcm[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    off += 2;
+  }
+
+  return new Blob([wavBuffer], { type: 'audio/wav' });
+}
+
 async function scoreWithAzureREST(audioBlob) {
   const word = state.currentWord.word;
   const proxyBase = CFG.proxyUrl;
 
-  // Pronunciation assessment params as JSON in header
   const paParams = btoa(JSON.stringify({
     ReferenceText: word,
     GradingSystem: "HundredMark",
@@ -1145,14 +1198,14 @@ async function scoreWithAzureREST(audioBlob) {
   }));
 
   const url = `${proxyBase}/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=detailed`;
-
-  console.log('[Inputly] Sending audio to proxy:', url);
+  console.log('[Inputly] Sending WAV to proxy:', url);
+  console.log('[Inputly] PA header:', paParams);
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'audio/webm; codecs=opus',
+        'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=16000',
         'Pronunciation-Assessment': paParams,
       },
       body: audioBlob
@@ -1415,6 +1468,3 @@ loadNextWord();
 </script>
 </body>
 </html>
-
-
-
