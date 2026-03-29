@@ -646,7 +646,8 @@
 
 <!-- Tabs -->
 <div class="tab-row">
-  <div class="tab active" onclick="switchTab('practice')">Practice</div>
+  <div class="tab active" onclick="switchTab('practice')">Words</div>
+  <div class="tab" onclick="switchTab('sentences')">Sentences</div>
   <div class="tab" onclick="switchTab('weakspots')">My weak sounds</div>
 </div>
 
@@ -789,6 +790,90 @@
   </div>
 </div>
 
+<!-- Sentences tab -->
+<div class="main hidden" id="tab-sentences">
+
+  <!-- Sentence card -->
+  <div class="card">
+    <div class="card-label">Say this sentence</div>
+    <div id="sentence-text" style="font-size:22px;font-weight:500;line-height:1.4;letter-spacing:-0.3px;margin-bottom:0.5rem;color:var(--gray-900)">—</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:0.75rem;">
+      <button class="listen-btn" onclick="speakSentence()">
+        <div class="play-dot">
+          <svg width="7" height="9" viewBox="0 0 7 9" fill="none"><path d="M1 1.5l5 3-5 3V1.5z" fill="white"/></svg>
+        </div>
+        Hear it
+      </button>
+      <span class="focus-badge" id="sentence-focus-badge"></span>
+    </div>
+  </div>
+
+  <!-- Sentence phoneme breakdown — words grouped -->
+  <div class="card" id="sentence-phoneme-card">
+    <div class="card-label">Phoneme breakdown</div>
+    <div id="sentence-phoneme-row" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;"></div>
+  </div>
+
+  <!-- Score card (reuse same structure) -->
+  <div class="card hidden" id="sentence-score-card">
+    <div class="score-top">
+      <div>
+        <div class="score-big"><span id="sentence-score-num">0</span><span class="score-suffix">%</span></div>
+        <div class="score-sub">Overall accuracy</div>
+      </div>
+      <div class="ring-wrap">
+        <svg viewBox="0 0 68 68">
+          <circle cx="34" cy="34" r="28" fill="none" stroke="#E5E7EB" stroke-width="6"/>
+          <circle id="sentence-score-ring" cx="34" cy="34" r="28" fill="none" stroke="#2563EB"
+            stroke-width="6" stroke-dasharray="176" stroke-dashoffset="176"
+            stroke-linecap="round" transform="rotate(-90 34 34)"
+            style="transition: stroke-dashoffset 0.8s ease"/>
+        </svg>
+      </div>
+    </div>
+    <div class="insight" id="sentence-insight-box">
+      <div class="insight-icon">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <circle cx="6" cy="6" r="5" stroke="#D97706" stroke-width="1.2"/>
+          <path d="M6 4v3M6 8.5v.5" stroke="#D97706" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <p id="sentence-insight-text">Analysing your attempt…</p>
+    </div>
+  </div>
+
+  <!-- Mic zone -->
+  <div class="mic-zone">
+    <div class="waveform" id="sentence-waveform">
+      <div class="wbar" style="height:6px"  id="sw1"></div>
+      <div class="wbar" style="height:10px" id="sw2"></div>
+      <div class="wbar" style="height:16px" id="sw3"></div>
+      <div class="wbar" style="height:22px" id="sw4"></div>
+      <div class="wbar" style="height:18px" id="sw5"></div>
+      <div class="wbar" style="height:12px" id="sw6"></div>
+      <div class="wbar" style="height:7px"  id="sw7"></div>
+      <div class="wbar" style="height:13px" id="sw8"></div>
+      <div class="wbar" style="height:20px" id="sw9"></div>
+      <div class="wbar" style="height:16px" id="sw10"></div>
+      <div class="wbar" style="height:8px"  id="sw11"></div>
+    </div>
+    <button class="mic-btn" id="sentence-mic-btn" onclick="handleSentenceMicClick()">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <rect x="9.5" y="2" width="7" height="13" rx="3.5" fill="white"/>
+        <path d="M5 13c0 4.42 3.58 8 8 8s8-3.58 8-8" stroke="white" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <path d="M13 21v3" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <span class="mic-hint" id="sentence-mic-hint">Tap to speak</span>
+  </div>
+
+  <div class="action-row">
+    <button class="btn-retry" id="sentence-btn-retry" onclick="retrySentence()" disabled>Try again</button>
+    <button class="btn-next" id="sentence-btn-next" onclick="nextSentence()" disabled>Next sentence →</button>
+  </div>
+
+</div>
+
 <script>
 // ── Config ──────────────────────────────────────────────
 const CFG = {
@@ -814,7 +899,28 @@ const WORD_BANK = [
   { word: 'particularly',ipa: 'pəˈtɪk.jʊ.lə.li',phonemes: ['p','ax','t','ih','k','y','uh','l','ax','l','iy'], chunks: ['p','uh','t','i','k','y','oo','l','uh','l','ee'], focus: 'ih + uh' },
 ];
 
-// ── State ────────────────────────────────────────────────
+// ── Sentence bank ─────────────────────────────────────────
+const SENTENCE_BANK = [
+  { text: 'The weather is rather cold today.',         focus: 'th + r sounds',   phonemeFocus: ['th','dh','r'] },
+  { text: 'She sells seashells by the seashore.',      focus: 'sh sound',        phonemeFocus: ['sh'] },
+  { text: 'Whether the weather is fine or not.',       focus: 'th + w sounds',   phonemeFocus: ['th','dh','w'] },
+  { text: 'The thought of flying thoroughly thrills me.', focus: 'th clusters',  phonemeFocus: ['th'] },
+  { text: 'Rural roads are rarely rough.',             focus: 'r clusters',      phonemeFocus: ['r'] },
+  { text: 'World-class athletes work particularly hard.', focus: 'er + l sounds',phonemeFocus: ['er','l'] },
+  { text: 'She should schedule a thorough check.',     focus: 'sh + th sounds',  phonemeFocus: ['sh','th'] },
+  { text: 'Squirrels literally live in large trees.',  focus: 'l + r sounds',    phonemeFocus: ['l','r'] },
+  { text: 'The thin thread was thoroughly woven.',     focus: 'th sound',        phonemeFocus: ['th'] },
+  { text: 'His words were particularly well chosen.',  focus: 'w + er sounds',   phonemeFocus: ['w','er'] },
+];
+
+// ── Sentence state ────────────────────────────────────────
+let sentenceState = {
+  current: null,
+  index: 0,
+  isRecording: false,
+  waveInterval: null,
+  hasAttempted: false,
+};
 let state = {
   currentWord: null,
   wordIndex: 0,
@@ -888,11 +994,17 @@ function updateBanner() {
 
 function switchTab(tab) {
   document.getElementById('tab-practice').classList.toggle('hidden', tab !== 'practice');
+  document.getElementById('tab-sentences').classList.toggle('hidden', tab !== 'sentences');
   document.getElementById('tab-weakspots').classList.toggle('hidden', tab !== 'weakspots');
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', (i === 0 && tab === 'practice') || (i === 1 && tab === 'weakspots'));
+    t.classList.toggle('active',
+      (i === 0 && tab === 'practice') ||
+      (i === 1 && tab === 'sentences') ||
+      (i === 2 && tab === 'weakspots')
+    );
   });
   if (tab === 'weakspots') renderWeakSpots();
+  if (tab === 'sentences' && !sentenceState.current) loadNextSentence();
 }
 
 // ── Word selection ────────────────────────────────────────
@@ -1466,7 +1578,290 @@ function renderWeakSpots() {
   }
 }
 
-// ── Start ─────────────────────────────────────────────────
+// ── Sentence mode ─────────────────────────────────────────
+function loadNextSentence() {
+  const s = SENTENCE_BANK[sentenceState.index % SENTENCE_BANK.length];
+  sentenceState.current = s;
+  sentenceState.hasAttempted = false;
+
+  document.getElementById('sentence-text').textContent = s.text;
+  document.getElementById('sentence-focus-badge').textContent = `Focus: ${s.focus}`;
+  document.getElementById('sentence-score-card').classList.add('hidden');
+  document.getElementById('sentence-btn-retry').disabled = true;
+  document.getElementById('sentence-btn-next').disabled = true;
+
+  // Render blank phoneme tiles grouped by word
+  renderSentencePhonemes(s.text, []);
+}
+
+function renderSentencePhonemes(text, allPhonemes) {
+  const row = document.getElementById('sentence-phoneme-row');
+  row.innerHTML = '';
+
+  // Split into words, render a group per word
+  const words = text.replace(/[.,!?]/g, '').split(' ');
+  let phonemeIndex = 0;
+
+  words.forEach(word => {
+    const group = document.createElement('div');
+    group.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+
+    const tiles = document.createElement('div');
+    tiles.style.cssText = 'display:flex;gap:4px;';
+
+    // Estimate phoneme count for this word (2-3 per syllable roughly)
+    // Use actual phonemes from Azure if available, else placeholder count
+    const wordPhonemeCount = estimatePhonemeCount(word);
+    const wordPhonemes = allPhonemes.slice(phonemeIndex, phonemeIndex + wordPhonemeCount);
+    phonemeIndex += wordPhonemeCount;
+
+    for (let i = 0; i < Math.max(wordPhonemeCount, wordPhonemes.length); i++) {
+      const p = wordPhonemes[i];
+      const tile = document.createElement('div');
+      tile.className = 'ph' + (p ? (p.score >= 70 ? ' scored-good' : ' scored-bad') : '');
+      tile.id = `sph-${phonemeIndex - wordPhonemeCount + i}`;
+      tile.style.cssText = 'min-width:36px;padding:6px 8px;';
+      tile.innerHTML = `
+        <span class="ph-sym" style="font-size:15px">${p ? p.phoneme : '·'}</span>
+        <span class="ph-score">${p ? p.score + '%' : '—'}</span>`;
+      tiles.appendChild(tile);
+    }
+
+    const wordLabel = document.createElement('div');
+    wordLabel.style.cssText = 'font-size:11px;color:var(--gray-400);margin-top:2px;';
+    wordLabel.textContent = word;
+
+    group.appendChild(tiles);
+    group.appendChild(wordLabel);
+    row.appendChild(group);
+  });
+}
+
+function estimatePhonemeCount(word) {
+  // Rough estimate: count vowel clusters as 1, consonants as 1 each
+  const clean = word.toLowerCase().replace(/[^a-z]/g, '');
+  let count = 0;
+  let prevVowel = false;
+  for (const ch of clean) {
+    const isVowel = 'aeiou'.includes(ch);
+    if (!isVowel || !prevVowel) count++;
+    prevVowel = isVowel;
+  }
+  return Math.max(2, count);
+}
+
+function renderSentencePhonemesFromAzure(words) {
+  const row = document.getElementById('sentence-phoneme-row');
+  row.innerHTML = '';
+
+  words.forEach(wordObj => {
+    const group = document.createElement('div');
+    group.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+
+    const tiles = document.createElement('div');
+    tiles.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;justify-content:center;';
+
+    (wordObj.Phonemes || []).forEach(p => {
+      const score = p.AccuracyScore ?? 0;
+      const tile = document.createElement('div');
+      tile.className = 'ph ' + (score >= 70 ? 'scored-good' : 'scored-bad');
+      tile.style.cssText = 'min-width:36px;padding:6px 8px;';
+      tile.innerHTML = `
+        <span class="ph-sym" style="font-size:15px">${p.Phoneme}</span>
+        <span class="ph-score">${score}%</span>`;
+      tiles.appendChild(tile);
+    });
+
+    const wordLabel = document.createElement('div');
+    wordLabel.style.cssText = 'font-size:11px;color:var(--gray-400);margin-top:2px;max-width:80px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    wordLabel.textContent = wordObj.Word;
+
+    // Colour the word label based on its accuracy
+    const wordScore = wordObj.AccuracyScore ?? 0;
+    wordLabel.style.color = wordScore >= 70 ? '#16A34A' : wordScore > 0 ? '#DC2626' : 'var(--gray-400)';
+
+    group.appendChild(tiles);
+    group.appendChild(wordLabel);
+    row.appendChild(group);
+  });
+}
+
+function speakSentence() {
+  if (!sentenceState.current) return;
+  const utt = new SpeechSynthesisUtterance(sentenceState.current.text);
+  utt.lang = 'en-US';
+  utt.rate = 0.85;
+  speechSynthesis.speak(utt);
+}
+
+function handleSentenceMicClick() {
+  if (sentenceState.isRecording) {
+    stopSentenceRecording();
+  } else {
+    startSentenceRecording();
+  }
+}
+
+async function startSentenceRecording() {
+  sentenceState.isRecording = true;
+  const btn = document.getElementById('sentence-mic-btn');
+  btn.classList.add('recording');
+  document.getElementById('sentence-mic-hint').textContent = 'Recording… tap to stop';
+  startSentenceWave();
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    stopSentenceRecording();
+    document.getElementById('sentence-mic-hint').textContent = 'Mic access denied';
+    return;
+  }
+
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    const blob = new Blob(audioChunks);
+    const wavBlob = await convertToWav(blob);
+    await scoreSentenceWithAzure(wavBlob);
+  };
+  mediaRecorder.start();
+
+  // Auto-stop after 8 seconds for sentences
+  setTimeout(() => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      stopSentenceRecording();
+    }
+  }, 8000);
+}
+
+function stopSentenceRecording() {
+  sentenceState.isRecording = false;
+  const btn = document.getElementById('sentence-mic-btn');
+  btn.classList.remove('recording');
+  document.getElementById('sentence-mic-hint').textContent = 'Tap to speak';
+  stopSentenceWave();
+  if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+}
+
+function startSentenceWave() {
+  const bars = ['sw1','sw2','sw3','sw4','sw5','sw6','sw7','sw8','sw9','sw10','sw11'];
+  sentenceState.waveInterval = setInterval(() => {
+    bars.forEach(id => {
+      const h = 4 + Math.random() * 28;
+      const el = document.getElementById(id);
+      if (el) { el.style.height = h + 'px'; el.classList.toggle('active', Math.random() > 0.4); }
+    });
+  }, 80);
+}
+
+function stopSentenceWave() {
+  clearInterval(sentenceState.waveInterval);
+  const heights = [6,10,16,22,18,12,7,13,20,16,8];
+  ['sw1','sw2','sw3','sw4','sw5','sw6','sw7','sw8','sw9','sw10','sw11'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (el) { el.style.height = heights[i] + 'px'; el.classList.remove('active'); }
+  });
+}
+
+async function scoreSentenceWithAzure(wavBlob) {
+  const sentence = sentenceState.current.text;
+  const proxyBase = CFG.proxyUrl;
+
+  const paParams = btoa(JSON.stringify({
+    ReferenceText: sentence,
+    GradingSystem: "HundredMark",
+    Granularity: "Phoneme",
+    EnableMiscue: true
+  }));
+
+  const url = `${proxyBase}/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=detailed`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=16000',
+        'Pronunciation-Assessment': paParams,
+      },
+      body: wavBlob
+    });
+
+    if (!response.ok) {
+      document.getElementById('sentence-mic-hint').textContent = `Error ${response.status} — try again`;
+      return;
+    }
+
+    const result = await response.json();
+    console.log('[Inputly] Sentence result:', JSON.stringify(result, null, 2));
+
+    const nBest = result?.NBest?.[0];
+    if (!nBest) {
+      document.getElementById('sentence-mic-hint').textContent = "No speech detected — try again";
+      return;
+    }
+
+    const words = nBest.Words || [];
+    renderSentencePhonemesFromAzure(words);
+
+    // Overall score
+    const overall = Math.round(nBest.AccuracyScore ?? 0);
+    document.getElementById('sentence-score-num').textContent = overall;
+    const offset = 176 - (overall / 100) * 176;
+    document.getElementById('sentence-score-ring').setAttribute('stroke-dashoffset', offset.toFixed(1));
+    document.getElementById('sentence-score-card').classList.remove('hidden');
+
+    // Find worst phoneme across all words
+    let worstScore = 101, worstPhoneme = null;
+    words.forEach(w => {
+      (w.Phonemes || []).forEach(p => {
+        if ((p.AccuracyScore ?? 0) < worstScore) {
+          worstScore = p.AccuracyScore ?? 0;
+          worstPhoneme = p.Phoneme;
+        }
+      });
+    });
+
+    const insight = worstPhoneme ? getStaticInsight({ phoneme: worstPhoneme }) :
+      "Good attempt! Keep practising for a more natural flow.";
+    document.getElementById('sentence-insight-text').innerHTML = insight;
+
+    sentenceState.hasAttempted = true;
+    document.getElementById('sentence-btn-retry').disabled = false;
+    document.getElementById('sentence-btn-next').disabled = false;
+
+    // Feed phoneme scores into session weak spots
+    words.forEach(w => {
+      (w.Phonemes || []).forEach(p => {
+        const sym = p.Phoneme;
+        const score = Math.round(p.AccuracyScore ?? 0);
+        state.phonemeScores[sym] = state.phonemeScores[sym]
+          ? Math.round((state.phonemeScores[sym] + score) / 2)
+          : score;
+      });
+    });
+
+  } catch (err) {
+    console.error('[Inputly] Sentence scoring error:', err);
+    document.getElementById('sentence-mic-hint').textContent = "Network error — try again";
+  }
+}
+
+function retrySentence() {
+  sentenceState.hasAttempted = false;
+  document.getElementById('sentence-score-card').classList.add('hidden');
+  document.getElementById('sentence-btn-retry').disabled = true;
+  document.getElementById('sentence-btn-next').disabled = true;
+  renderSentencePhonemes(sentenceState.current.text, []);
+}
+
+function nextSentence() {
+  sentenceState.index++;
+  loadNextSentence();
+}
 loadNextWord();
 </script>
 </body>
