@@ -1092,12 +1092,6 @@ async function startAzureRecording() {
     return;
   }
 
-  if (!CFG.azureKey) {
-    console.warn('[Inputly] No Azure key — falling back to demo');
-    setTimeout(() => simulateScores(), 1800);
-    return;
-  }
-
   try {
     // Explicitly request mic permission first — Azure SDK crashes internally if this isn't granted
     console.log('[Inputly] Requesting microphone permission...');
