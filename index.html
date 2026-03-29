@@ -1223,40 +1223,39 @@ async function scoreWithAzureREST(audioBlob) {
     const result = await response.json();
     console.log('[Inputly] Azure result:', JSON.stringify(result, null, 2));
 
-    // Parse pronunciation assessment from result
     const nBest = result?.NBest?.[0];
     if (!nBest) {
       showMicError("No speech detected — speak clearly and try again.");
       return;
     }
 
-    const pa = nBest.PronunciationAssessment;
     const words = nBest.Words || [];
 
-    // Collect phoneme scores across all words
+    // Phoneme scores are directly on each phoneme object in the REST API
     const allPhonemes = [];
     words.forEach(w => {
       (w.Phonemes || []).forEach(p => {
         allPhonemes.push({
           phoneme: p.Phoneme,
-          score: p.PronunciationAssessment?.AccuracyScore ?? 0
+          score: p.AccuracyScore ?? 0   // REST API: score is directly on p, not nested
         });
       });
     });
 
+    console.log('[Inputly] Parsed phonemes:', allPhonemes);
+
     const wordPhonemes = state.currentWord.phonemes;
     const finalPhonemes = wordPhonemes.map((sym, i) => ({
       phoneme: sym,
-      score: allPhonemes[i]?.score ?? pa?.AccuracyScore ?? 0
+      score: allPhonemes[i]?.score ?? nBest.AccuracyScore ?? 0
     }));
 
-    displayResults({
-      overall:  Math.round(pa?.PronunciationScore  ?? pa?.AccuracyScore ?? 0),
-      fluency:  Math.round(pa?.FluencyScore        ?? pa?.AccuracyScore ?? 0),
-      accuracy: Math.round(pa?.AccuracyScore       ?? 0),
-      stress:   Math.round(pa?.ProsodyScore        ?? pa?.AccuracyScore ?? 0),
-      phonemes: finalPhonemes
-    });
+    const overall  = Math.round(nBest.AccuracyScore ?? 0);
+    const fluency  = Math.round(nBest.AccuracyScore ?? 0);
+    const accuracy = Math.round(nBest.AccuracyScore ?? 0);
+    const stress   = Math.round(nBest.AccuracyScore ?? 0);
+
+    displayResults({ overall, fluency, accuracy, stress, phonemes: finalPhonemes });
 
   } catch (err) {
     console.error('[Inputly] Fetch error:', err);
