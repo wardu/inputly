@@ -1052,8 +1052,9 @@ function stopRecording() {
   btn.classList.remove('recording');
   document.getElementById('mic-hint').textContent = 'Tap to speak';
   stopWaveAnimation();
-  // Cancel Azure session if user taps mic mid-recognition
-  if (azureRecognizer && CFG.hasAzure) stopAzureRecording();
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  }
 }
 
 function startWaveAnimation() {
@@ -1079,135 +1080,140 @@ function stopWaveAnimation() {
 // ── Azure Speech Assessment ───────────────────────────────
 let azureRecognizer = null;
 
+// ── Azure REST-based recording ────────────────────────────
+let mediaRecorder = null;
+let audioChunks = [];
+
 async function startAzureRecording() {
-  const sdk = window.SpeechSDK;
-
-  console.log('[Inputly] startAzureRecording called');
-  console.log('[Inputly] SpeechSDK loaded:', !!sdk);
-  console.log('[Inputly] Azure key present:', !!CFG.azureKey, '| Region:', CFG.azureRegion);
-
-  if (!sdk) {
-    console.warn('[Inputly] Azure Speech SDK not loaded — falling back to demo');
-    setTimeout(() => simulateScores(), 1800);
-    return;
-  }
+  console.log('[Inputly] startAzureRecording called (REST mode)');
 
   try {
-    // Explicitly request mic permission first — Azure SDK crashes internally if this isn't granted
     console.log('[Inputly] Requesting microphone permission...');
+    let stream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop()); // release immediately, SDK will re-acquire
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       console.log('[Inputly] Mic permission granted');
     } catch (micErr) {
       console.error('[Inputly] Mic permission denied:', micErr);
       stopRecording();
-      showMicError("Microphone access denied — click the camera icon in the address bar to allow it.");
+      showMicError("Microphone access denied — allow mic access and try again.");
       return;
     }
 
-    const proxyEndpoint = `wss://${CFG.proxyUrl.replace('https://', '')}/cognitiveservices/websocket/v1`;
-    const speechConfig = sdk.SpeechConfig.fromEndpoint(
-      new URL(`wss://inputly-proxy.ward-ubery.workers.dev/cognitiveservices/websocket/v1`),
-      'proxy' // dummy key — real key is on the Worker
-    );
-    speechConfig.speechRecognitionLanguage = 'en-US';
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
-    const paConfig = new sdk.PronunciationAssessmentConfig(
-      state.currentWord.word,
-      sdk.PronunciationAssessmentGradingSystem.HundredMark,
-      sdk.PronunciationAssessmentGranularity.Phoneme,
-      true
-    );
-
-    const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-    azureRecognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-    paConfig.applyTo(azureRecognizer);
-
-    console.log('[Inputly] Recognizer created, starting continuous recognition...');
-
-    azureRecognizer.recognized = (s, e) => {
-      console.log('[Inputly] recognized event, reason:', e.result.reason);
-      if (e.result.reason === sdk.ResultReason.RecognizedSpeech) {
-        azureRecognizer.stopContinuousRecognitionAsync(() => {
-          stopRecording();
-          try {
-            const pa = sdk.PronunciationAssessmentResult.fromResult(e.result);
-            console.log('[Inputly] PA result:', pa);
-
-            const allPhonemes = [];
-            const detail = pa.detailResult;
-            if (detail && detail.Words) {
-              detail.Words.forEach(w => {
-                (w.Phonemes || []).forEach(p => {
-                  allPhonemes.push({
-                    phoneme: p.Phoneme,
-                    score: p.PronunciationAssessment?.AccuracyScore ?? 0
-                  });
-                });
-              });
-            }
-
-            const wordPhonemes = state.currentWord.phonemes;
-            const finalPhonemes = wordPhonemes.map((sym, i) => ({
-              phoneme: sym,
-              score: allPhonemes[i]?.score ?? pa.accuracyScore ?? 0
-            }));
-
-            displayResults({
-              overall:  Math.round(pa.pronunciationScore  ?? pa.accuracyScore ?? 0),
-              fluency:  Math.round(pa.fluencyScore        ?? pa.accuracyScore ?? 0),
-              accuracy: Math.round(pa.accuracyScore       ?? 0),
-              stress:   Math.round(pa.prosodyScore        ?? pa.accuracyScore ?? 0),
-              phonemes: finalPhonemes
-            });
-          } catch (parseErr) {
-            console.error('[Inputly] Error parsing PA result:', parseErr);
-            showMicError("Couldn't parse Azure result — try again.");
-          }
-          azureRecognizer = null;
-        });
-      } else if (e.result.reason === sdk.ResultReason.NoMatch) {
-        azureRecognizer.stopContinuousRecognitionAsync(() => {
-          stopRecording();
-          showMicError("Couldn't hear you clearly — try again in a quieter space.");
-          azureRecognizer = null;
-        });
-      }
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) audioChunks.push(e.data);
     };
 
-    azureRecognizer.canceled = (s, e) => {
-      console.error('[Inputly] Azure canceled:', e.errorCode, e.errorDetails);
-      azureRecognizer.stopContinuousRecognitionAsync(() => {
-        stopRecording();
-        if (e.errorCode === sdk.CancellationErrorCode.AuthenticationFailure) {
-          showMicError("Azure key rejected — check your key and region.");
-        } else {
-          showMicError(`Azure error ${e.errorCode}: ${e.errorDetails?.slice(0, 60)}`);
-        }
-        azureRecognizer = null;
-      });
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      console.log('[Inputly] Audio recorded, size:', blob.size, 'bytes');
+      await scoreWithAzureREST(blob);
     };
 
-    azureRecognizer.startContinuousRecognitionAsync(
-      () => console.log('[Inputly] Continuous recognition started — listening...'),
-      err => {
-        console.error('[Inputly] Failed to start recognition:', err);
+    mediaRecorder.start();
+    console.log('[Inputly] MediaRecorder started');
+
+    // Auto-stop after 4 seconds if user doesn't tap to stop
+    setTimeout(() => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
         stopRecording();
-        showMicError("Failed to start Azure — check console for details.");
-        azureRecognizer = null;
       }
-    );
+    }, 4000);
+
   } catch (err) {
-    console.error('Failed to start Azure recognizer:', err);
+    console.error('[Inputly] Failed to start recording:', err);
     stopRecording();
-    showMicError("Couldn't start Azure — check your key and region.");
+    showMicError("Could not start microphone — " + err.message);
+  }
+}
+
+async function scoreWithAzureREST(audioBlob) {
+  const word = state.currentWord.word;
+  const proxyBase = CFG.proxyUrl;
+
+  // Pronunciation assessment params as JSON in header
+  const paParams = btoa(JSON.stringify({
+    ReferenceText: word,
+    GradingSystem: "HundredMark",
+    Granularity: "Phoneme",
+    EnableMiscue: true
+  }));
+
+  const url = `${proxyBase}/cognitiveservices/v1?language=en-US&format=detailed`;
+
+  console.log('[Inputly] Sending audio to proxy:', url);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'audio/webm; codecs=opus',
+        'Pronunciation-Assessment': paParams,
+      },
+      body: audioBlob
+    });
+
+    console.log('[Inputly] Proxy response status:', response.status);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('[Inputly] Proxy error response:', text);
+      showMicError(`Azure error ${response.status} — check proxy config.`);
+      return;
+    }
+
+    const result = await response.json();
+    console.log('[Inputly] Azure result:', JSON.stringify(result, null, 2));
+
+    // Parse pronunciation assessment from result
+    const nBest = result?.NBest?.[0];
+    if (!nBest) {
+      showMicError("No speech detected — speak clearly and try again.");
+      return;
+    }
+
+    const pa = nBest.PronunciationAssessment;
+    const words = nBest.Words || [];
+
+    // Collect phoneme scores across all words
+    const allPhonemes = [];
+    words.forEach(w => {
+      (w.Phonemes || []).forEach(p => {
+        allPhonemes.push({
+          phoneme: p.Phoneme,
+          score: p.PronunciationAssessment?.AccuracyScore ?? 0
+        });
+      });
+    });
+
+    const wordPhonemes = state.currentWord.phonemes;
+    const finalPhonemes = wordPhonemes.map((sym, i) => ({
+      phoneme: sym,
+      score: allPhonemes[i]?.score ?? pa?.AccuracyScore ?? 0
+    }));
+
+    displayResults({
+      overall:  Math.round(pa?.PronunciationScore  ?? pa?.AccuracyScore ?? 0),
+      fluency:  Math.round(pa?.FluencyScore        ?? pa?.AccuracyScore ?? 0),
+      accuracy: Math.round(pa?.AccuracyScore       ?? 0),
+      stress:   Math.round(pa?.ProsodyScore        ?? pa?.AccuracyScore ?? 0),
+      phonemes: finalPhonemes
+    });
+
+  } catch (err) {
+    console.error('[Inputly] Fetch error:', err);
+    showMicError("Network error — check your connection.");
   }
 }
 
 function stopAzureRecording() {
-  if (azureRecognizer) {
-    try { azureRecognizer.stopContinuousRecognitionAsync(() => { azureRecognizer = null; }); } catch {}
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
   }
 }
 
@@ -1409,4 +1415,5 @@ loadNextWord();
 </script>
 </body>
 </html>
+
 
