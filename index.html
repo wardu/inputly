@@ -1144,7 +1144,7 @@ async function scoreWithAzureREST(audioBlob) {
     EnableMiscue: true
   }));
 
-  const url = `${proxyBase}/cognitiveservices/v1?language=en-US&format=detailed`;
+  const url = `${proxyBase}/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=detailed`;
 
   console.log('[Inputly] Sending audio to proxy:', url);
 
@@ -1415,5 +1415,6 @@ loadNextWord();
 </script>
 </body>
 </html>
+
 
 
