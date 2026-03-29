@@ -802,16 +802,16 @@ const CFG = {
 
 // ── Word bank (fallback when Claude unavailable) ─────────
 const WORD_BANK = [
-  { word: 'thoroughly', ipa: 'ˈθʌr.ə.li',  phonemes: ['θ','ʌ','r','ə','l','i'],   chunks: ['th','u','r','uh','l','ee'],  focus: 'ʌ sound' },
-  { word: 'whether',    ipa: 'ˈweð.ər',      phonemes: ['w','e','ð','ə','r'],       chunks: ['w','e','th','uh','r'],       focus: 'ð sound' },
-  { word: 'thought',    ipa: 'θɔːt',          phonemes: ['θ','ɔː','t'],              chunks: ['th','aw','t'],               focus: 'θ sound' },
-  { word: 'world',      ipa: 'wɜːld',         phonemes: ['w','ɜː','l','d'],          chunks: ['w','ur','l','d'],            focus: 'ɜː sound' },
-  { word: 'comfortable',ipa: 'ˈkʌmf.tə.bl',  phonemes: ['k','ʌ','m','f','t','ə','b','l'], chunks: ['k','u','m','f','t','uh','b','l'], focus: 'ʌ sound' },
-  { word: 'squirrel',   ipa: 'ˈskwɪr.əl',    phonemes: ['s','k','w','ɪ','r','ə','l'], chunks: ['s','k','w','i','r','uh','l'], focus: 'ɪ + r' },
-  { word: 'schedule',   ipa: 'ˈʃed.juːl',    phonemes: ['ʃ','e','d','j','uː','l'], chunks: ['sh','e','d','y','oo','l'],   focus: 'ʃ sound' },
-  { word: 'rural',      ipa: 'ˈrʊər.əl',     phonemes: ['r','ʊ','ə','r','ə','l'],  chunks: ['r','oo','uh','r','uh','l'], focus: 'r clusters' },
-  { word: 'literally',  ipa: 'ˈlɪt.ər.ə.li', phonemes: ['l','ɪ','t','ə','r','ə','l','i'], chunks: ['l','i','t','uh','r','uh','l','ee'], focus: 'ɪ sound' },
-  { word: 'particularly', ipa: 'pəˈtɪk.jʊ.lə.li', phonemes: ['p','ə','t','ɪ','k','j','ʊ','l','ə','l','i'], chunks: ['p','uh','t','i','k','y','oo','l','uh','l','ee'], focus: 'ɪ + ʊ' },
+  { word: 'thoroughly', ipa: 'ˈθʌr.ə.li',     phonemes: ['th','er','r','ow','l','iy'],          chunks: ['th','ur','r','oh','l','ee'],  focus: 'th sound' },
+  { word: 'whether',    ipa: 'ˈweð.ər',         phonemes: ['w','eh','dh','er'],                   chunks: ['w','e','th','ur'],            focus: 'dh sound' },
+  { word: 'thought',    ipa: 'θɔːt',            phonemes: ['th','ao','t'],                        chunks: ['th','aw','t'],                focus: 'th sound' },
+  { word: 'world',      ipa: 'wɜːld',           phonemes: ['w','er','l','d'],                     chunks: ['w','ur','l','d'],             focus: 'er sound' },
+  { word: 'comfortable',ipa: 'ˈkʌmf.tə.bl',    phonemes: ['k','ah','m','f','t','ax','b','l'],    chunks: ['k','u','m','f','t','uh','b','l'], focus: 'ah sound' },
+  { word: 'squirrel',   ipa: 'ˈskwɪr.əl',      phonemes: ['s','k','w','ih','r','ax','l'],        chunks: ['s','k','w','i','r','uh','l'], focus: 'ih + r' },
+  { word: 'schedule',   ipa: 'ˈʃed.juːl',       phonemes: ['sh','eh','d','y','uw','l'],           chunks: ['sh','e','d','y','oo','l'],    focus: 'sh sound' },
+  { word: 'rural',      ipa: 'ˈrʊər.əl',        phonemes: ['r','uh','er','ax','l'],               chunks: ['r','oo','ur','uh','l'],       focus: 'r clusters' },
+  { word: 'literally',  ipa: 'ˈlɪt.ər.ə.li',   phonemes: ['l','ih','t','er','ax','l','iy'],      chunks: ['l','i','t','ur','uh','l','ee'], focus: 'ih sound' },
+  { word: 'particularly',ipa: 'pəˈtɪk.jʊ.lə.li',phonemes: ['p','ax','t','ih','k','y','uh','l','ax','l','iy'], chunks: ['p','uh','t','i','k','y','oo','l','uh','l','ee'], focus: 'ih + uh' },
 ];
 
 // ── State ────────────────────────────────────────────────
@@ -1400,17 +1400,21 @@ Use <strong> tags to highlight the phoneme symbol and any key technique words.`;
 
 function getStaticInsight(worstPhoneme) {
   const tips = {
-    'θ': 'The <strong>θ</strong> sound needs your tongue lightly touching your upper front teeth. Push air over your tongue — it should feel like a soft hiss.',
-    'ð': 'For <strong>ð</strong>, place your tongue between your teeth and add voice from your throat. It\'s like <strong>θ</strong> but vibrating.',
-    'ʌ': 'The <strong>ʌ</strong> sound is central — like a quick, relaxed "uh". Keep your mouth slightly open and don\'t round your lips.',
-    'ɜː': 'For <strong>ɜː</strong>, relax your mouth into a neutral position — no lip rounding. Hold the sound longer than you think.',
-    'ɪ': 'The <strong>ɪ</strong> is a short, relaxed "i". Don\'t tense your tongue — it should be looser than the long <strong>iː</strong>.',
-    'ʊ': 'For <strong>ʊ</strong>, round your lips gently without pushing them forward. It\'s softer and shorter than a full "oo".',
-    'ʃ': 'For <strong>ʃ</strong>, round your lips slightly and push your tongue back from your teeth. Air should flow smoothly over a wide tongue.',
-    'r':  'English <strong>r</strong> — curl your tongue tip back slightly without touching anything. Keep your lips slightly rounded.',
-    'w':  'For <strong>w</strong>, round your lips tightly first, then open them quickly as you voice the sound.',
+    'th':  'For <strong>th</strong>, place your tongue lightly between your front teeth and blow air gently over it.',
+    'dh':  'For voiced <strong>th</strong> (as in "the"), same tongue position as "th" but add voice from your throat.',
+    'ah':  'The <strong>ah</strong> sound is open and relaxed — drop your jaw, like a doctor asking you to say "aah".',
+    'er':  'For <strong>er</strong>, curl your tongue slightly back without touching anything. Hold it steady.',
+    'ih':  'The <strong>ih</strong> is a short, relaxed "i" — don\'t tense your tongue, keep it looser than "ee".',
+    'uh':  'For <strong>uh</strong>, keep your mouth slightly open in a neutral, relaxed position — no rounding.',
+    'sh':  'For <strong>sh</strong>, round your lips slightly and push your tongue back. Air flows over a wide tongue.',
+    'r':   'English <strong>r</strong> — curl your tongue tip back slightly without touching anything. Round your lips gently.',
+    'w':   'For <strong>w</strong>, round your lips tightly first, then open them quickly as you voice the sound.',
+    'iy':  'The <strong>ee</strong> sound — spread your lips slightly and raise the front of your tongue high.',
+    'ow':  'For <strong>oh</strong>, start with rounded lips and let them relax — it\'s a smooth glide.',
+    'ao':  'The <strong>aw</strong> sound — open your mouth wide and round your lips slightly, like "awe".',
+    'uw':  'For <strong>oo</strong>, round your lips tightly and push them forward slightly.',
   };
-  return tips[worstPhoneme.phoneme] || `Focus on the <strong>${worstPhoneme.phoneme}</strong> sound — listen to the native audio and compare the shape of your mouth carefully.`;
+  return tips[worstPhoneme.phoneme] || `Focus on the <strong>${worstPhoneme.phoneme}</strong> sound — listen to the native audio carefully and compare your mouth position.`;
 }
 
 // ── Actions ───────────────────────────────────────────────
